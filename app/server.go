@@ -21,7 +21,7 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		go handleClient(conn)
+		handleClient(conn)
 	}
 }
 
@@ -31,7 +31,7 @@ func handleClient(conn net.Conn) {
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("error: ", err.Error())
+		fmt.Println("read error: ", err.Error())
 		return
 	}
 
