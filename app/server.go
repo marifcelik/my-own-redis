@@ -37,7 +37,7 @@ func handleClient(conn net.Conn) {
 
 	fmt.Println("Received data", buf[:n])
 
-	_, err = conn.Write(buf[:n])
+	_, err = conn.Write([]byte("+PONG\r\n"))
 	if err != nil {
 		fmt.Println("write error: ", err.Error())
 	}
