@@ -22,7 +22,7 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		handleClient(conn)
+		go handleClient(conn)
 	}
 }
 
