@@ -94,12 +94,12 @@ func handleMessage(msg []byte) (result []byte, err error) {
 		case "set":
 			key, value := string(splittedMsg[4]), string(splittedMsg[6])
 			db[key] = value
-			result = append(result, []byte("\"OK\"")...)
+			result = append(result, []byte("OK")...)
 
 		case "get":
 			value, ok := db[string(splittedMsg[4])]
 			if ok {
-				result = append(result, []byte(fmt.Sprintf("\"%s\"", value))...)
+				result = append(result, []byte(value)...)
 			} else {
 				result = append(result, []byte("(nil)")...)
 				err = fmt.Errorf("key not found")
