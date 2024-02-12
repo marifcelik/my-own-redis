@@ -21,6 +21,8 @@ const (
 const PORT = 6379
 const DELIMITER = "\r\n"
 
+var db map[string]string = map[string]string{}
+
 func main() {
 	l, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: PORT})
 	if err != nil {
@@ -61,7 +63,7 @@ func handleConn(conn net.Conn) {
 		resp, err := handleMessage(buf[:n])
 		if err != nil {
 			// TODO handle message read error
-			log.Println("TODO")
+			log.Println("probably message type error")
 		}
 
 		fmt.Printf("resp: %v\n", string(resp))
@@ -72,24 +74,43 @@ func handleConn(conn net.Conn) {
 	}
 }
 
-func handleMessage(msg []byte) ([]byte, error) {
+func handleMessage(msg []byte) (result []byte, err error) {
 	splittedMsg := bytes.Split(msg, []byte(DELIMITER))
+
+	result = []byte{byte(String)}
 
 	respType := Resp(splittedMsg[0][0])
 	switch respType {
 	case Array:
 		switch strings.ToLower(string(splittedMsg[2])) {
 		case "echo":
-			result := []byte("+")
 			for i := 4; i < len(splittedMsg); i += 2 {
 				result = append(result, splittedMsg[i]...)
 			}
-			result = append(result, []byte(DELIMITER)...)
-			return result, nil
+
 		case "ping":
-			return []byte("+PONG\r\n"), nil
+			result = append(result, []byte("PONG")...)
+
+		case "set":
+			key, value := string(splittedMsg[4]), string(splittedMsg[6])
+			db[key] = value
+			result = append(result, []byte("\"OK\"")...)
+
+		case "get":
+			value, ok := db[string(splittedMsg[4])]
+			if ok {
+				result = append(result, []byte(fmt.Sprintf("\"%s\"", value))...)
+			} else {
+				result = append(result, []byte("(nil)")...)
+				err = fmt.Errorf("key not found")
+			}
+
+		default:
+			result = append(result, []byte("hi marceline")...)
+			err = fmt.Errorf("invalid command")
 		}
 	}
 
-	return []byte("+hi marceline" + DELIMITER), nil
+	result = append(result, []byte(DELIMITER)...)
+	return result, err
 }
