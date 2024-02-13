@@ -6,7 +6,9 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Resp byte
@@ -63,7 +65,7 @@ func handleConn(conn net.Conn) {
 		resp, err := handleMessage(buf[:n])
 		if err != nil {
 			// TODO handle message read error
-			log.Println("probably message type error")
+			log.Println(err.Error())
 		}
 
 		fmt.Printf("resp: %v\n", string(resp))
@@ -77,11 +79,16 @@ func handleConn(conn net.Conn) {
 func handleMessage(msg []byte) (result []byte, err error) {
 	splittedMsg := bytes.Split(msg, []byte(DELIMITER))
 
+	for _, v := range splittedMsg {
+		fmt.Printf("v: %v\n", string(v))
+	}
+
 	result = []byte{byte(String)}
 
 	respType := Resp(splittedMsg[0][0])
 	switch respType {
 	case Array:
+		arrayLen, _ := strconv.Atoi(string(splittedMsg[0][1:]))
 		switch strings.ToLower(string(splittedMsg[2])) {
 		case "echo":
 			for i := 4; i < len(splittedMsg); i += 2 {
@@ -94,6 +101,15 @@ func handleMessage(msg []byte) (result []byte, err error) {
 		case "set":
 			key, value := string(splittedMsg[4]), string(splittedMsg[6])
 			db[key] = value
+
+			if arrayLen > 3 && strings.ToLower(string(splittedMsg[8])) == "px" {
+				duration, err := strconv.Atoi(string(splittedMsg[10]))
+				if err != nil {
+					return nil, err
+				}
+				go handlePx(time.After(time.Millisecond*time.Duration(duration)), key)
+			}
+
 			result = append(result, []byte("OK")...)
 
 		case "get":
@@ -112,5 +128,10 @@ func handleMessage(msg []byte) (result []byte, err error) {
 	}
 
 	result = append(result, []byte(DELIMITER)...)
-	return result, err
+	return
+}
+
+func handlePx(c <-chan time.Time, key string) {
+	<-c
+	delete(db, key)
 }
