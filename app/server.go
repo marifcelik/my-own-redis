@@ -64,7 +64,6 @@ func handleConn(conn net.Conn) {
 		log.Printf("Received data from %v: %v\n", addr, string(buf[:n]))
 		resp, err := handleMessage(buf[:n])
 		if err != nil {
-			// TODO handle message read error
 			log.Println(err.Error())
 		}
 
@@ -117,7 +116,7 @@ func handleMessage(msg []byte) (result []byte, err error) {
 			if ok {
 				result = append(result, []byte(value)...)
 			} else {
-				result = append(result, []byte("(nil)")...)
+				result = []byte("$-1")
 				err = fmt.Errorf("key not found")
 			}
 
