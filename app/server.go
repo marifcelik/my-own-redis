@@ -1,29 +1,36 @@
 package main
 
 import (
-	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type Resp byte
-
 const (
-	Integer Resp = ':'
-	String  Resp = '+'
-	Bulk    Resp = '$'
-	Array   Resp = '*'
+	PORT      = 6379
+	DELIMITER = "\r\n"
 )
 
-const PORT = 6379
-const DELIMITER = "\r\n"
+var (
+	db map[string]string = map[string]string{}
+	fs                   = flag.NewFlagSet("f1", flag.ContinueOnError)
+)
 
-var db map[string]string = map[string]string{}
+func init() {
+	fs.String("dir", "/tmp/redis-files", "persistence data dir")
+	fs.String("dbfilename", "dump.rdb", "persistence data file name")
+
+	err := fs.Parse(os.Args[1:])
+	if err != nil {
+		log.Fatalf("flag parsing error: %v\n", err.Error())
+	}
+}
 
 func main() {
 	l, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: PORT})
@@ -64,7 +71,7 @@ func handleConn(conn net.Conn) {
 		log.Printf("Received data from %v: %v\n", addr, string(buf[:n]))
 		resp, err := handleMessage(buf[:n])
 		if err != nil {
-			log.Println(err.Error())
+			log.Printf("message handling error : %v\n", err.Error())
 		}
 
 		fmt.Printf("resp: %v\n", string(resp))
@@ -75,62 +82,71 @@ func handleConn(conn net.Conn) {
 	}
 }
 
-func handleMessage(msg []byte) (result []byte, err error) {
-	splittedMsg := bytes.Split(msg, []byte(DELIMITER))
+func handleMessage(msg []byte) ([]byte, error) {
+	splittedMsg := strings.Split(string(msg), DELIMITER)
 
-	for _, v := range splittedMsg {
-		fmt.Printf("v: %v\n", string(v))
-	}
+	result := string(String)
+	var err error
 
-	result = []byte{byte(String)}
-
-	respType := Resp(splittedMsg[0][0])
+	respType := RespT(splittedMsg[0][0])
 	switch respType {
 	case Array:
-		arrayLen, _ := strconv.Atoi(string(splittedMsg[0][1:]))
-		switch strings.ToLower(string(splittedMsg[2])) {
+		arrayLen, _ := strconv.Atoi(splittedMsg[0][1:])
+		switch strings.ToLower(splittedMsg[2]) {
 		case "echo":
 			for i := 4; i < len(splittedMsg); i += 2 {
-				result = append(result, splittedMsg[i]...)
+				result += splittedMsg[i]
 			}
 
 		case "ping":
-			result = append(result, []byte("PONG")...)
+			result += "PONG"
 
 		case "set":
-			key, value := string(splittedMsg[4]), string(splittedMsg[6])
+			key, value := splittedMsg[4], splittedMsg[6]
 			db[key] = value
 
-			if arrayLen > 3 && strings.ToLower(string(splittedMsg[8])) == "px" {
-				duration, err := strconv.Atoi(string(splittedMsg[10]))
+			if arrayLen > 3 && strings.ToLower(splittedMsg[8]) == "px" {
+				duration, err := strconv.Atoi(splittedMsg[10])
 				if err != nil {
 					return nil, err
 				}
-				go handlePx(time.After(time.Millisecond*time.Duration(duration)), key)
+				// delete after px
+				go func(c <-chan time.Time, key string) {
+					<-c
+					delete(db, key)
+				}(time.After(time.Millisecond*time.Duration(duration)), key)
 			}
 
-			result = append(result, []byte("OK")...)
+			result += "OK"
 
 		case "get":
-			value, ok := db[string(splittedMsg[4])]
+			value, ok := db[splittedMsg[4]]
 			if ok {
-				result = append(result, []byte(value)...)
+				result += value
 			} else {
-				result = []byte("$-1")
+				result = "$-1"
 				err = fmt.Errorf("key not found")
 			}
 
+		case "config":
+			if strings.ToLower(splittedMsg[6]) == "get" {
+				rflag := fs.Lookup(splittedMsg[8])
+				if rflag != nil {
+					// TODO
+					// result = string(Array) + "2" + DELIMITER + string(Bulk) + len(rflag.Name)
+				} else {
+					result = "$-1"
+					err = fmt.Errorf("config not found")
+				}
+
+			}
+
 		default:
-			result = append(result, []byte("hi marceline")...)
+			result += "hi marceline"
 			err = fmt.Errorf("invalid command")
 		}
 	}
 
-	result = append(result, []byte(DELIMITER)...)
-	return
-}
-
-func handlePx(c <-chan time.Time, key string) {
-	<-c
-	delete(db, key)
+	result += DELIMITER
+	return []byte(result), err
 }
