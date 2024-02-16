@@ -18,16 +18,15 @@ const (
 )
 
 var (
-	db map[string]string = map[string]string{}
-	fs                   = flag.NewFlagSet("f1", flag.ContinueOnError)
+	db = map[string]string{}
+	fs = flag.NewFlagSet("f1", flag.ContinueOnError)
 )
 
 func init() {
 	fs.String("dir", "/tmp/redis-files", "persistence data dir")
 	fs.String("dbfilename", "dump.rdb", "persistence data file name")
 
-	err := fs.Parse(os.Args[1:])
-	if err != nil {
+	if err := fs.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("flag parsing error: %v\n", err.Error())
 	}
 }

@@ -16,4 +16,14 @@ type Resp struct {
 	Count int
 }
 
+func NewResp(data []byte) *Resp {
+	r := new(Resp)
+	r.Raw = data
+	r.parse()
+	return r
+}
+
 // TODO create some methods for reading response and writing response
+func (r *Resp) parse() {
+
+}
