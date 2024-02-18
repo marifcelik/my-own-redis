@@ -10,16 +10,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/codecrafters-io/redis-starter-go/app/resp"
 )
 
-const (
-	PORT      = 6379
-	DELIMITER = "\r\n"
-)
+const PORT = 6379
 
 var (
 	db = map[string]string{}
-	fs = flag.NewFlagSet("f1", flag.ContinueOnError)
+	fs = flag.NewFlagSet("fs", flag.ContinueOnError)
 )
 
 func init() {
@@ -56,7 +55,7 @@ func handleConn(conn net.Conn) {
 	addr := conn.RemoteAddr().(*net.TCPAddr).IP.String()
 
 	for {
-		buf := make([]byte, 1024)
+		buf := make([]byte, 512)
 		n, err := conn.Read(buf)
 		if err != nil {
 			// in net.Conn, EOF means client connection is closed
@@ -68,44 +67,54 @@ func handleConn(conn net.Conn) {
 			return
 		}
 		log.Printf("Received data from %v: %v\n", addr, string(buf[:n]))
-		resp, err := handleMessage(buf[:n])
+		response, err := handleMessage(buf[:n])
 		if err != nil {
 			log.Printf("message handling error : %v\n", err.Error())
 		}
 
-		fmt.Printf("resp: %v\n", string(resp))
-		_, err = conn.Write(resp)
+		fmt.Printf("resp: %v\n", string(response.Raw))
+		_, err = conn.Write(response.Raw)
 		if err != nil {
 			log.Println("write error: ", err.Error())
 		}
 	}
 }
 
-func handleMessage(msg []byte) ([]byte, error) {
-	splittedMsg := strings.Split(string(msg), DELIMITER)
-
-	result := string(String)
+func handleMessage(msg []byte) (*resp.Resp, error) {
+	incoming := resp.NewResp(msg)
+	fmt.Printf("incoming.Value: %v\n", incoming.Value)
+	result := resp.NewResp([]byte{})
 	var err error
 
-	respType := RespT(splittedMsg[0][0])
-	switch respType {
-	case Array:
-		arrayLen, _ := strconv.Atoi(splittedMsg[0][1:])
-		switch strings.ToLower(splittedMsg[2]) {
+	switch incoming.Type {
+	case resp.Array:
+		switch strings.ToLower(incoming.Value[1]) {
+		case "ping":
+			result.Type = resp.String
+			result.SetPong()
+
 		case "echo":
-			for i := 4; i < len(splittedMsg); i += 2 {
-				result += splittedMsg[i]
+			result.Type = resp.Bulk
+			result.SetValue(incoming.Value[3])
+			fmt.Printf("result: %v\n", result)
+
+		case "get":
+			result.Type = resp.Bulk
+			value, ok := db[incoming.Value[3]]
+			if ok {
+				result.SetValue(value)
+			} else {
+				result.Type = resp.Bulk
+				result.Value = []string{"-1"}
+				err = fmt.Errorf("key not found")
 			}
 
-		case "ping":
-			result += "PONG"
-
 		case "set":
-			key, value := splittedMsg[4], splittedMsg[6]
+			key, value := incoming.Value[3], incoming.Value[5]
 			db[key] = value
 
-			if arrayLen > 3 && strings.ToLower(splittedMsg[8]) == "px" {
-				duration, err := strconv.Atoi(splittedMsg[10])
+			if incoming.Length > 3 && strings.ToLower(incoming.Value[7]) == "px" {
+				duration, err := strconv.Atoi(incoming.Value[9])
 				if err != nil {
 					return nil, err
 				}
@@ -115,37 +124,39 @@ func handleMessage(msg []byte) ([]byte, error) {
 					delete(db, key)
 				}(time.After(time.Millisecond*time.Duration(duration)), key)
 			}
-
-			result += "OK"
-
-		case "get":
-			value, ok := db[splittedMsg[4]]
-			if ok {
-				result += value
-			} else {
-				result = "$-1"
-				err = fmt.Errorf("key not found")
-			}
+			result.SetOK()
 
 		case "config":
-			if strings.ToLower(splittedMsg[6]) == "get" {
-				rflag := fs.Lookup(splittedMsg[8])
+			switch strings.ToLower(incoming.Value[3]) {
+			case "get":
+				rflag := fs.Lookup(incoming.Value[5])
 				if rflag != nil {
-					// TODO
-					// result = string(Array) + "2" + DELIMITER + string(Bulk) + len(rflag.Name)
+					result.Type = resp.Array
+					result.AppendBulk(incoming.Value[5])
+					if rflag.Value.String() != "" {
+						result.AppendBulk(rflag.Value.String())
+					} else {
+						result.AppendBulk(rflag.DefValue)
+					}
 				} else {
-					result = "$-1"
+					result.Type = resp.Bulk
+					result.Value = []string{"-1"}
 					err = fmt.Errorf("config not found")
 				}
-
+			case "set":
+				// TODO
 			}
 
 		default:
-			result += "hi marceline"
+			result.Type = resp.String
+			result.SetValue("hi marceline")
 			err = fmt.Errorf("invalid command")
 		}
 	}
 
-	result += DELIMITER
-	return []byte(result), err
+	if err2 := result.Parse(); err2 != nil {
+		return nil, err2
+	}
+	fmt.Printf("result.Raw: %v\n", result.Value)
+	return result, err
 }
