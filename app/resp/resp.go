@@ -97,7 +97,7 @@ func (r *Resp) AppendBulk(strs ...any) error {
 		}
 
 		r.Value = append(r.Value, fmt.Sprintf("$%v", len(value)), value)
-		r.Length = len(r.Value)
+		r.Length = len(r.Value) / 2
 	}
 
 	return nil

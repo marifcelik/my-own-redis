@@ -157,6 +157,6 @@ func handleMessage(msg []byte) (*resp.Resp, error) {
 	if err2 := result.Parse(); err2 != nil {
 		return nil, err2
 	}
-	fmt.Printf("result.Raw: %v\n", result.Value)
+	fmt.Printf("result.Raw: %v\n", result.Raw)
 	return result, err
 }
