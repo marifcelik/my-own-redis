@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/codecrafters-io/redis-starter-go/app/resp"
 )
 
 const PORT = 6379
@@ -72,39 +70,37 @@ func handleConn(conn net.Conn) {
 			log.Printf("message handling error : %v\n", err.Error())
 		}
 
-		fmt.Printf("resp: %v\n", string(response.Raw))
-		_, err = conn.Write(response.Raw)
+		_, err = conn.Write(response.Bytes())
 		if err != nil {
 			log.Println("write error: ", err.Error())
 		}
 	}
 }
 
-func handleMessage(msg []byte) (*resp.Resp, error) {
-	incoming := resp.NewResp(msg)
-	fmt.Printf("incoming.Value: %v\n", incoming.Value)
-	result := resp.NewResp([]byte{})
+func handleMessage(msg []byte) (*Resp, error) {
+	incoming := NewResp(msg)
+
+	result := NewResp([]byte{})
 	var err error
 
 	switch incoming.Type {
-	case resp.Array:
+	case Array:
 		switch strings.ToLower(incoming.Value[1]) {
 		case "ping":
-			result.Type = resp.String
+			result.Type = String
 			result.SetPong()
 
 		case "echo":
-			result.Type = resp.Bulk
+			result.Type = Bulk
 			result.SetValue(incoming.Value[3])
-			fmt.Printf("result: %v\n", result)
 
 		case "get":
-			result.Type = resp.Bulk
+			result.Type = Bulk
 			value, ok := db[incoming.Value[3]]
 			if ok {
 				result.SetValue(value)
 			} else {
-				result.Type = resp.Bulk
+				result.Type = Bulk
 				result.Value = []string{"-1"}
 				err = fmt.Errorf("key not found")
 			}
@@ -131,32 +127,41 @@ func handleMessage(msg []byte) (*resp.Resp, error) {
 			case "get":
 				rflag := fs.Lookup(incoming.Value[5])
 				if rflag != nil {
-					result.Type = resp.Array
-					result.AppendBulk(incoming.Value[5])
-					if rflag.Value.String() != "" {
-						result.AppendBulk(rflag.Value.String())
-					} else {
-						result.AppendBulk(rflag.DefValue)
+					result.Type = Array
+					value := rflag.Value.String()
+					if value == "" {
+						value = rflag.DefValue
 					}
+					result.AppendBulk(incoming.Value[5], value)
 				} else {
-					result.Type = resp.Bulk
+					result.Type = Bulk
 					result.Value = []string{"-1"}
 					err = fmt.Errorf("config not found")
 				}
 			case "set":
-				// TODO
+				flagName := incoming.Value[5]
+				newValue := incoming.Value[7]
+				rflag := fs.Lookup(flagName)
+				if rflag != nil {
+					rflag.Value.Set(newValue)
+					result.SetOK()
+				} else {
+					result.Type = Bulk
+					result.Value = []string{"-1"}
+					err = fmt.Errorf("config not found")
+				}
 			}
 
 		default:
-			result.Type = resp.String
+			result.Type = String
 			result.SetValue("hi marceline")
 			err = fmt.Errorf("invalid command")
 		}
 	}
 
 	if err2 := result.Parse(); err2 != nil {
-		return nil, err2
+		err = err2
 	}
-	fmt.Printf("result.Raw: %v\n", result.Raw)
+
 	return result, err
 }

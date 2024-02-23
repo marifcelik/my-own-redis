@@ -1,4 +1,4 @@
-package resp
+package main
 
 import (
 	"fmt"
@@ -20,15 +20,13 @@ const (
 type Resp struct {
 	Type   RespT
 	Value  []string
-	Raw    []byte
 	Length int
+	raw    []byte
 }
 
 func NewResp(data []byte, t ...RespT) *Resp {
-	fmt.Println(string(data))
 	r := new(Resp)
-	r.Raw = data
-	r.parse()
+	r.parse(data)
 	if len(t) > 0 {
 		r.Type = RespT(t[0])
 	}
@@ -36,9 +34,9 @@ func NewResp(data []byte, t ...RespT) *Resp {
 }
 
 // i have not figured out how can i parse the resp string
-func (r *Resp) parse() {
-	splitted := strings.Split(string(r.Raw), TERMINATOR)
-	if len(r.Raw) > 0 {
+func (r *Resp) parse(raw []byte) {
+	splitted := strings.Split(string(raw), TERMINATOR)
+	if len(r.raw) > 0 {
 		r.Type = RespT(splitted[0][0])
 		r.Value = splitted[1:]
 	}
@@ -104,27 +102,28 @@ func (r *Resp) AppendBulk(strs ...any) error {
 }
 
 func (r *Resp) Parse() error {
-	var raw []byte
-
 	if r.Type == 0 {
 		return fmt.Errorf("resp must have a type")
 	}
 
-	raw = append(raw, byte(r.Type))
+	if r.Length == 0 {
+		r.Length = len(r.Value) / 2
+	}
+
+	r.raw = append(r.raw, byte(r.Type))
 	if r.Type == Array || (r.Type == Bulk && !strings.HasPrefix(r.Value[0], "-")) {
-		raw = append(raw, []byte(strconv.Itoa(r.Length))...)
-		raw = append(raw, []byte(TERMINATOR)...)
+		r.raw = append(r.raw, []byte(strconv.Itoa(r.Length))...)
+		r.raw = append(r.raw, []byte(TERMINATOR)...)
 	}
 
 	for _, v := range r.Value {
-		raw = append(raw, []byte(v)...)
-		raw = append(raw, []byte(TERMINATOR)...)
+		r.raw = append(r.raw, []byte(v)...)
+		r.raw = append(r.raw, []byte(TERMINATOR)...)
 	}
 
-	r.Raw = raw
 	return nil
 }
 
 func (r Resp) Bytes() []byte {
-	return r.Raw
+	return r.raw
 }
