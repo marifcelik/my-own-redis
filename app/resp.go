@@ -35,9 +35,11 @@ func NewResp(data []byte, t ...RespT) *Resp {
 
 func (r *Resp) parse(raw []byte) {
 	splitted := strings.Split(string(raw), TERMINATOR)
-	if len(r.raw) > 0 {
+	if len(raw) > 0 {
 		r.Type = RespT(splitted[0][0])
+		fmt.Println(r.Type, " parse")
 		r.Value = splitted[1:]
+		r.raw = raw
 	}
 
 	if r.Type == Array || r.Type == Bulk {
@@ -101,6 +103,7 @@ func (r *Resp) AppendBulk(strs ...any) error {
 }
 
 func (r *Resp) Parse() error {
+	fmt.Printf("r.Type: %v\n", r.Type)
 	if r.Type == 0 {
 		return fmt.Errorf("resp must have a type")
 	}

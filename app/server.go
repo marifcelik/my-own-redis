@@ -104,7 +104,6 @@ func handleMessage(msg []byte) (*Resp, error) {
 	case Array:
 		switch strings.ToLower(incoming.Value[1]) {
 		case "ping":
-			result.Type = String
 			result.SetPong()
 
 		case "echo":
