@@ -32,6 +32,10 @@ func init() {
 	if *fDir != "" && *fDbFilename != "" {
 		file, err := os.Open(path.Join(*fDir, *fDbFilename))
 		if err != nil {
+			if err == os.ErrNotExist {
+				log.Println("db file not found")
+				return
+			}
 			log.Fatal(err)
 		}
 		defer file.Close()
