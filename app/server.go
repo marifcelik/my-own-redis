@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -20,11 +22,26 @@ var (
 )
 
 func init() {
-	fs.String("dir", "/tmp/redis-files", "persistence data dir")
-	fs.String("dbfilename", "dump.rdb", "persistence data file name")
+	fDir := fs.String("dir", "", "persistence data dir")
+	fDbFilename := fs.String("dbfilename", "", "persistence data file name")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("flag parsing error: %v\n", err.Error())
+	}
+
+	if *fDir != "" && *fDbFilename != "" {
+		file, err := os.Open(path.Join(*fDir, *fDbFilename))
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+
+		r := bufio.NewReader(file)
+		lines, err := r.ReadBytes('\n')
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("---file---\n%v", string(lines))
 	}
 }
 

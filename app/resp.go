@@ -33,7 +33,6 @@ func NewResp(data []byte, t ...RespT) *Resp {
 	return r
 }
 
-// i have not figured out how can i parse the resp string
 func (r *Resp) parse(raw []byte) {
 	splitted := strings.Split(string(raw), TERMINATOR)
 	if len(r.raw) > 0 {
