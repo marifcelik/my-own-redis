@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,7 +33,7 @@ func init() {
 	if *fDir != "" && *fDbFilename != "" {
 		file, err := os.Open(path.Join(*fDir, *fDbFilename))
 		if err != nil {
-			if err == os.ErrNotExist {
+			if errors.Is(err, os.ErrNotExist) {
 				log.Println("db file not found")
 				return
 			}
