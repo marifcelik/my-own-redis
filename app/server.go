@@ -46,7 +46,7 @@ func init() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("---file---\n%v", string(lines))
+		fmt.Printf("---file---\n%v\n", lines)
 	}
 }
 
@@ -79,7 +79,7 @@ func handleConn(conn net.Conn) {
 		n, err := conn.Read(buf)
 		if err != nil {
 			// in net.Conn, EOF means client connection is closed
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				log.Printf("%v connection closed\n", addr)
 			} else {
 				log.Printf("read error at %v connection: %v\n", addr, err.Error())
@@ -172,6 +172,9 @@ func handleMessage(msg []byte) (*Resp, error) {
 					err = fmt.Errorf("config not found")
 				}
 			}
+
+		case "keys":
+			// pattern := incoming.Value[5]
 
 		default:
 			result.Type = String
